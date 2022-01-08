@@ -24,6 +24,7 @@ typedef matrix<double,2,1> input_vector;
 typedef matrix<double,3,1> parameter_vector;
 
 const double sqrt2pi = std::sqrt(2*pi);
+const double sqrtpi = std::sqrt(pi);
 // ----------------------------------------------------------------------------------------
 
 // We will use this function to generate data.  It represents a function of 2 variables
@@ -34,17 +35,26 @@ double model (
     const parameter_vector& params
 )
 {
-    const double m = params(0);
-    const double s = params(1);
+    const double a = params(0);
+    const double b = params(1);
 
     const double x = input(0);
 
-    //const double temp = p0*i0 + p1*i1 + p2;
-    double temp = log(x - m);
-    temp = -(temp*temp)/(2*s*s);
-    const double temp1 = 1/(x*s*sqrt2pi) * exp(temp);
+    /*
+               /               2 \
+               |   (a - log(x))  |
+    sqrt(2) exp| - ------------- |
+               |           2     |
+               \        2 b      /
+    ------------------------------
+            b x sqrt(pi) 2
+     */
 
-    return temp1*temp;
+    const double logx = log(x);
+    const double nominator = sqrt_2 * exp(- ((a - logx)*(a - logx))/(2*b*b));
+    const double denominator = b * sqrtpi * 2;
+    return nominator/denominator;
+
 }
 
 // ----------------------------------------------------------------------------------------
@@ -68,20 +78,46 @@ parameter_vector residual_derivative (
     const parameter_vector& params
 )
 {
+    /*
+    wrt a (mean)
+             /               2 \
+             |   (a - log(x))  |
+  sqrt(2) exp| - ------------- | (2 a - 2 log(x))
+             |           2     |
+             \        2 b      /
+- -----------------------------------------------
+                   3
+                  b  x sqrt(pi) 4
+
+
+    wrt b (standard deviation)
+               /               2 \
+               |   (a - log(x))  |        2                 2    2
+    sqrt(2) exp| - ------------- | (log(x)  - 2 a log(x) + a  - b )
+               |           2     |
+               \        2 b      /
+    ---------------------------------------------------------------
+                             4
+                            b  x sqrt(pi) 2
+    */
     parameter_vector der;
 
-    const double p0 = params(0);
-    const double p1 = params(1);
-    const double p2 = params(2);
+    const double a = params(0);
+    const double b = params(1);
 
-    const double i0 = data.first(0);
-    const double i1 = data.first(1);
+    const double x = data.first(0);
+    const double logx = log(x);
+    const double sqb = b*b;
+    const double exp_fraction = sqrt_2 * exp(- ((a - logx)*(a - logx))/(2*sqb));
 
-    const double temp = p0*i0 + p1*i1 + p2;
+    const double numeratorA = exp_fraction * (2 * a - 2 * logx);
+    const double denominatorA = b*sqb * sqrtpi * 4;
 
-    der(0) = i0*2*temp;
-    der(1) = i1*2*temp;
-    der(2) = 2*temp;
+    const double numeratorB = exp_fraction * (logx*logx - 2 * a * logx + a*a - sqb);
+    const double denominatorB = sqb*sqb * x * sqrtpi * 2;
+
+    der(0) = numeratorA/denominatorA;
+    der(1) = numeratorB/denominatorB;
 
     return der;
 }
@@ -205,51 +241,3 @@ int main(int argc, char* argv[])
         cout << e.what() << endl;
     }
 }
-
-// Example output:
-/*
-params: 8.40188 3.94383 7.83099 
-
-derivative error: 9.78267e-06
-Use Levenberg-Marquardt
-iteration: 0   objective: 2.14455e+10
-iteration: 1   objective: 1.96248e+10
-iteration: 2   objective: 1.39172e+10
-iteration: 3   objective: 1.57036e+09
-iteration: 4   objective: 2.66917e+07
-iteration: 5   objective: 4741.9
-iteration: 6   objective: 0.000238674
-iteration: 7   objective: 7.8815e-19
-iteration: 8   objective: 0
-inferred parameters: 8.40188 3.94383 7.83099 
-
-solution error:      0
-
-Use Levenberg-Marquardt, approximate derivatives
-iteration: 0   objective: 2.14455e+10
-iteration: 1   objective: 1.96248e+10
-iteration: 2   objective: 1.39172e+10
-iteration: 3   objective: 1.57036e+09
-iteration: 4   objective: 2.66917e+07
-iteration: 5   objective: 4741.87
-iteration: 6   objective: 0.000238701
-iteration: 7   objective: 1.0571e-18
-iteration: 8   objective: 4.12469e-22
-inferred parameters: 8.40188 3.94383 7.83099 
-
-solution error:      5.34754e-15
-
-Use Levenberg-Marquardt/quasi-newton hybrid
-iteration: 0   objective: 2.14455e+10
-iteration: 1   objective: 1.96248e+10
-iteration: 2   objective: 1.3917e+10
-iteration: 3   objective: 1.5572e+09
-iteration: 4   objective: 2.74139e+07
-iteration: 5   objective: 5135.98
-iteration: 6   objective: 0.000285539
-iteration: 7   objective: 1.15441e-18
-iteration: 8   objective: 3.38834e-23
-inferred parameters: 8.40188 3.94383 7.83099 
-
-solution error:      1.77636e-15
-*/
