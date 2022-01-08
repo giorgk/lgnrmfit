@@ -23,6 +23,7 @@ using namespace dlib;
 typedef matrix<double,2,1> input_vector;
 typedef matrix<double,3,1> parameter_vector;
 
+const double sqrt2pi = std::sqrt(2*pi);
 // ----------------------------------------------------------------------------------------
 
 // We will use this function to generate data.  It represents a function of 2 variables
@@ -33,16 +34,17 @@ double model (
     const parameter_vector& params
 )
 {
-    const double p0 = params(0);
-    const double p1 = params(1);
-    const double p2 = params(2);
+    const double m = params(0);
+    const double s = params(1);
 
-    const double i0 = input(0);
-    const double i1 = input(1);
+    const double x = input(0);
 
-    const double temp = p0*i0 + p1*i1 + p2;
+    //const double temp = p0*i0 + p1*i1 + p2;
+    double temp = log(x - m);
+    temp = -(temp*temp)/(2*s*s);
+    const double temp1 = 1/(x*s*sqrt2pi) * exp(temp);
 
-    return temp*temp;
+    return temp1*temp;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -86,8 +88,33 @@ parameter_vector residual_derivative (
 
 // ----------------------------------------------------------------------------------------
 
-int main()
+bool read_inputfile(std::string filename, std::vector<double>& data, std::string& errmsg){
+    bool out = false;
+    std::ifstream datafile(filename.c_str());
+    if (!datafile.good()) {
+        errmsg = "Can't open the file" + filename;
+    }
+    else{
+        std::string line;
+        double d;
+        while (getline(datafile, line)){
+            if (line.size() > 0){
+                std::istringstream inp(line.c_str());
+                inp >> d;
+                data.push_back(d);
+            }
+        }
+        out = true;
+    }
+    return out;
+}
+
+int main(int argc, char* argv[])
 {
+    std::string infile = argv[1];
+    std::vector<double> data;
+    std::string msg;
+    read_inputfile(infile, data, msg);
     try
     {
         // randomly pick a set of parameters to use in this example
