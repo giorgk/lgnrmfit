@@ -162,7 +162,7 @@ int main(int argc, char* argv[])
         std::cout << "No input file!" << std::endl;
         return 0;
     }
-    std::cout << log(10) << std::endl;
+
     std::string infile = argv[1];
     data_samples DS;
     double maxYpos = 1;
@@ -194,8 +194,8 @@ int main(int argc, char* argv[])
         // Before we do anything, let's make sure that our derivative function defined above matches
         // the approximate derivative computed using central differences (via derivative()).  
         // If this value is big then it means we probably typed the derivative function incorrectly.
-        cout << "derivative error: " << length(residual_derivative(DS[18], params) -
-                                               derivative(residual)(DS[18], params) ) << endl;
+        //cout << "derivative error: " << length(residual_derivative(DS[18], params) -
+        //                                       derivative(residual)(DS[18], params) ) << endl;
 
 
 
@@ -206,22 +206,23 @@ int main(int argc, char* argv[])
         parameter_vector x;
         x = params;
 
-        cout << "Use Levenberg-Marquardt" << endl;
+        //cout << "Use Levenberg-Marquardt" << endl;
         // Use the Levenberg-Marquardt method to determine the parameters which
         // minimize the sum of all squared residuals.
-        solve_least_squares_lm(objective_delta_stop_strategy(1e-7).be_verbose(), 
+        solve_least_squares_lm(objective_delta_stop_strategy(1e-7),
                                residual,
                                residual_derivative,
                                DS,
                                x);
 
         // Now x contains the solution.  If everything worked it will be equal to params.
-        cout << "inferred parameters: "<< trans(x) << endl;
-        cout << "solution error:      "<< length(x - params) << endl;
-        cout << endl;
+        //cout << "inferred parameters: "<< trans(x) << endl;
+        //cout << "solution error:      "<< length(x - params) << endl;
+        //cout << endl;
+        cout << trans(x) << endl;
 
 
-
+        /*
 
         x = params;
         cout << "Use Levenberg-Marquardt, approximate derivatives" << endl;
@@ -255,6 +256,7 @@ int main(int argc, char* argv[])
         // Now x contains the solution.  If everything worked it will be equal to params.
         cout << "inferred parameters: "<< trans(x) << endl;
         cout << "solution error:      "<< length(x - params) << endl;
+        */
 
     }
     catch (std::exception& e)
