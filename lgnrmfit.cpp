@@ -20,8 +20,9 @@ using namespace dlib;
 
 // ----------------------------------------------------------------------------------------
 
-typedef matrix<double,2,1> input_vector;
-typedef matrix<double,3,1> parameter_vector;
+typedef matrix<double,1,1> input_vector;
+typedef matrix<double,2,1> parameter_vector;
+typedef std::vector<std::pair<input_vector, double> > data_samples;
 
 const double sqrt2pi = std::sqrt(2*pi);
 const double sqrtpi = std::sqrt(pi);
@@ -52,8 +53,9 @@ double model (
 
     const double logx = log(x);
     const double nominator = sqrt_2 * exp(- ((a - logx)*(a - logx))/(2*b*b));
-    const double denominator = b * sqrtpi * 2;
-    return nominator/denominator;
+    const double denominator = b * x * sqrtpi * 2;
+    double out = nominator/denominator;
+    return out;
 
 }
 
@@ -90,15 +92,14 @@ parameter_vector residual_derivative (
                   b  x sqrt(pi) 4
 
 
-    wrt b (standard deviation)
-               /               2 \
-               |   (a - log(x))  |        2                 2    2
-    sqrt(2) exp| - ------------- | (log(x)  - 2 a log(x) + a  - b )
-               |           2     |
-               \        2 b      /
-    ---------------------------------------------------------------
-                             4
-                            b  x sqrt(pi) 2
+           /               2 \                            /               2 \
+           |   (a - log(x))  |             2              |   (a - log(x))  |
+sqrt(2) exp| - ------------- | (a - log(x))    sqrt(2) exp| - ------------- |
+           |           2     |                            |           2     |
+           \        2 b      /                            \        2 b      /
+-------------------------------------------- - ------------------------------
+                4                                       2
+               b  x sqrt(pi) 2                         b  x sqrt(pi) 2
     */
     parameter_vector der;
 
@@ -107,24 +108,25 @@ parameter_vector residual_derivative (
 
     const double x = data.first(0);
     const double logx = log(x);
+    const double a_logxsq = (a - logx)*(a - logx);
     const double sqb = b*b;
-    const double exp_fraction = sqrt_2 * exp(- ((a - logx)*(a - logx))/(2*sqb));
+    const double exp_fraction = sqrt_2 * exp(- a_logxsq/(2*sqb));
 
     const double numeratorA = exp_fraction * (2 * a - 2 * logx);
-    const double denominatorA = b*sqb * sqrtpi * 4;
+    const double denominatorA = b*sqb * x * sqrtpi * 4;
 
-    const double numeratorB = exp_fraction * (logx*logx - 2 * a * logx + a*a - sqb);
+    const double numeratorB = exp_fraction * a_logxsq;
     const double denominatorB = sqb*sqb * x * sqrtpi * 2;
 
-    der(0) = numeratorA/denominatorA;
-    der(1) = numeratorB/denominatorB;
+    der(0) = -numeratorA/denominatorA;
+    der(1) = numeratorB/denominatorB - exp_fraction/(sqb * x * sqrtpi * 2);
 
     return der;
 }
 
 // ----------------------------------------------------------------------------------------
 
-bool read_inputfile(std::string filename, std::vector<double>& data, std::string& errmsg){
+bool read_inputfile(std::string filename, data_samples& DS, double& maxYPos, std::string& errmsg){
     bool out = false;
     std::ifstream datafile(filename.c_str());
     if (!datafile.good()) {
@@ -132,12 +134,21 @@ bool read_inputfile(std::string filename, std::vector<double>& data, std::string
     }
     else{
         std::string line;
-        double d;
+        double y;
+        double max_y = 0;
+        double x = 1;
+        input_vector input;
         while (getline(datafile, line)){
             if (line.size() > 0){
                 std::istringstream inp(line.c_str());
-                inp >> d;
-                data.push_back(d);
+                inp >> y;
+                input(0) = x;
+                DS.push_back(make_pair(input, y));
+                if (y > max_y){
+                    max_y = y;
+                    maxYPos = x;
+                }
+                x = x + 1.0;
             }
         }
         out = true;
@@ -147,34 +158,44 @@ bool read_inputfile(std::string filename, std::vector<double>& data, std::string
 
 int main(int argc, char* argv[])
 {
+    if (argc == 1){
+        std::cout << "No input file!" << std::endl;
+        return 0;
+    }
+    std::cout << log(10) << std::endl;
     std::string infile = argv[1];
-    std::vector<double> data;
+    data_samples DS;
+    double maxYpos = 1;
     std::string msg;
-    read_inputfile(infile, data, msg);
+    bool tf = read_inputfile(infile, DS ,maxYpos,msg);
+
+    parameter_vector params;
+    params(0) = log(maxYpos);
+    params(1) = 0.3;
     try
     {
         // randomly pick a set of parameters to use in this example
-        const parameter_vector params = 10*randm(3,1);
-        cout << "params: " << trans(params) << endl;
+//        const parameter_vector params = 10*randm(3,1);
+//        cout << "params: " << trans(params) << endl;
 
 
         // Now let's generate a bunch of input/output pairs according to our model.
-        std::vector<std::pair<input_vector, double> > data_samples;
-        input_vector input;
-        for (int i = 0; i < 1000; ++i)
-        {
-            input = 10*randm(2,1);
-            const double output = model(input, params);
-
-            // save the pair
-            data_samples.push_back(make_pair(input, output));
-        }
+//        std::vector<std::pair<input_vector, double> > data_samples;
+//        input_vector input;
+//        for (int i = 0; i < 1000; ++i)
+//        {
+//            input = 10*randm(2,1);
+//            const double output = model(input, params);
+//
+//            // save the pair
+//            data_samples.push_back(make_pair(input, output));
+//        }
 
         // Before we do anything, let's make sure that our derivative function defined above matches
         // the approximate derivative computed using central differences (via derivative()).  
         // If this value is big then it means we probably typed the derivative function incorrectly.
-        cout << "derivative error: " << length(residual_derivative(data_samples[0], params) - 
-                                               derivative(residual)(data_samples[0], params) ) << endl;
+        cout << "derivative error: " << length(residual_derivative(DS[18], params) -
+                                               derivative(residual)(DS[18], params) ) << endl;
 
 
 
@@ -183,7 +204,7 @@ int main(int argc, char* argv[])
         // Now let's use the solve_least_squares_lm() routine to figure out what the
         // parameters are based on just the data_samples.
         parameter_vector x;
-        x = 1;
+        x = params;
 
         cout << "Use Levenberg-Marquardt" << endl;
         // Use the Levenberg-Marquardt method to determine the parameters which
@@ -191,7 +212,7 @@ int main(int argc, char* argv[])
         solve_least_squares_lm(objective_delta_stop_strategy(1e-7).be_verbose(), 
                                residual,
                                residual_derivative,
-                               data_samples,
+                               DS,
                                x);
 
         // Now x contains the solution.  If everything worked it will be equal to params.
@@ -202,14 +223,14 @@ int main(int argc, char* argv[])
 
 
 
-        x = 1;
+        x = params;
         cout << "Use Levenberg-Marquardt, approximate derivatives" << endl;
         // If we didn't create the residual_derivative function then we could
         // have used this method which numerically approximates the derivatives for you.
         solve_least_squares_lm(objective_delta_stop_strategy(1e-7).be_verbose(), 
                                residual,
                                derivative(residual),
-                               data_samples,
+                               DS,
                                x);
 
         // Now x contains the solution.  If everything worked it will be equal to params.
@@ -220,7 +241,7 @@ int main(int argc, char* argv[])
 
 
 
-        x = 1;
+        x = params;
         cout << "Use Levenberg-Marquardt/quasi-newton hybrid" << endl;
         // This version of the solver uses a method which is appropriate for problems
         // where the residuals don't go to zero at the solution.  So in these cases
@@ -228,7 +249,7 @@ int main(int argc, char* argv[])
         solve_least_squares(objective_delta_stop_strategy(1e-7).be_verbose(), 
                             residual,
                             residual_derivative,
-                            data_samples,
+                            DS,
                             x);
 
         // Now x contains the solution.  If everything worked it will be equal to params.
